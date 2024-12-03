@@ -1,6 +1,10 @@
 package listeners
 
 import (
+	"albion-killbot/internal/entities"
+	"albion-killbot/internal/usecases"
+	"fmt"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -14,6 +18,7 @@ func NewMessageListener() *MessageListener {
 
 // HandleMessage procesa los mensajes entrantes.
 func (ml *MessageListener) HandleMessage(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	fmt.Println(i.ChannelID)
 	if i.Type != discordgo.InteractionApplicationCommand {
 		return
 	}
@@ -22,15 +27,28 @@ func (ml *MessageListener) HandleMessage(s *discordgo.Session, i *discordgo.Inte
 	switch i.ApplicationCommandData().Name {
 	case "killboard":
 		guild := i.ApplicationCommandData().Options[0].StringValue()
-		response := "Registrando killboard para la guild: " + guild
 
-		// Responder a la interacción
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		event := entities.Event{
+			EventID:     "12345",
+			KillerGuild: guild,
+			KillerName:  "KillerPlayer",
+			VictimGuild: "VictimGuild",
+			VictimName:  "VictimPlayer",
+		}
+
+		embeds := usecases.GenerateKillEventEmbeds(event)
+
+		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: response,
+				Embeds: embeds,
 			},
 		})
+		if err != nil {
+			// Manejar error en la respuesta
+			println("Error enviando la respuesta:", err.Error())
+		}
+
 	case "set":
 		channelType := i.ApplicationCommandData().Options[0].StringValue()
 		response := "Configurando el canal como tipo: " + channelType

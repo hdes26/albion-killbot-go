@@ -2,7 +2,7 @@ package main
 
 import (
 	"albion-killbot/internal/application"
-	"albion-killbot/internal/infrastructure/services"
+	database "albion-killbot/internal/infrastructure/db"
 	"context"
 	"fmt"
 	"log"
@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	// Cargar el archivo .env
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error al cargar el archivo .env: %v", err)
@@ -23,21 +22,20 @@ func main() {
 		log.Fatal("El token del bot no está definido en el archivo .env")
 	}
 
+	// Conectar a MongoDB
+	mongoUri := os.Getenv("MG_URI")
+	err = database.Connect(mongoUri)
+	if err != nil {
+		log.Fatalf("Error al conectar a MongoDB: %v", err)
+	}
+	defer database.Disconnect()
+
 	fmt.Println("App running")
 
-	// Inicializar servicios
-	albionService := services.NewAlbionService()
+	// Crear la aplicación
+	app := application.NewApp(botToken) // Pasamos el token al crear la app
 
-	// Crear el servicio de aplicación que orquesta los casos de uso
-	app := application.NewApp(*albionService)
-
-	// Crear el bot
-	bot := application.NewBot(botToken)
-	if bot == nil {
-		log.Fatalf("Error al inicializar el bot")
-	}
-
-	// Crear un contexto sin timeout (la aplicación siempre estará ejecutándose)
+	// Crear un contexto sin timeout
 	ctx := context.Background()
 
 	// Ejecutar la lógica de la aplicación
@@ -45,11 +43,5 @@ func main() {
 		log.Fatalf("Error en la ejecución de la aplicación: %v", err)
 	}
 
-	// Ejecutar el bot, en caso de que la aplicación haya finalizado sin errores
-	if err := bot.Run(ctx); err != nil {
-		log.Fatalf("Error en la ejecución del bot: %v", err)
-	}
-
-	// Si ambos procesos se ejecutan correctamente
 	fmt.Println("Aplicación ejecutada con éxito")
 }

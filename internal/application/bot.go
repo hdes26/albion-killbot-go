@@ -14,6 +14,7 @@ import (
 type Bot struct {
 	Session                    *discordgo.Session
 	BotRegisterCommandsUseCase *usecases.BotRegisterCommandsUseCase // Referencia al caso de uso
+	SendKillEventUseCase       *usecases.SendKillEventUseCase
 }
 
 func NewBot(botToken string) *Bot {
@@ -62,9 +63,9 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	b.Session.Identify.Intents = discordgo.IntentsAllWithoutPrivileged
 
-	// Esperar señales para terminar (esto evita que el bot termine inmediatamente)
-	// Usamos un select vacío para mantener el bot ejecutándose
-	<-ctx.Done()
-
 	return nil
+}
+
+func (b *Bot) SendInteractionToServer(channelId string, message string) error {
+	return b.SendKillEventUseCase.Handle(channelId, message)
 }

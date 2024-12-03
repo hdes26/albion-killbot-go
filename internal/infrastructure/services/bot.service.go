@@ -80,3 +80,18 @@ func convertOptions(options []entities.CommandOption) []*discordgo.ApplicationCo
 	}
 	return botOptions
 }
+
+func (b *BotService) SendInteractionToServer(channelId string, message string) error {
+	fmt.Println("--------------------")
+
+	fmt.Println(channelId, message)
+	fmt.Println("--------------------")
+
+	_, err := b.Session.ChannelMessageSend(channelId, message)
+	if err != nil {
+		log.Printf("Error al enviar interacción al servidor: %v", err)
+		return err
+	}
+	log.Printf("Interacción enviada al servidor: %s, mensaje: %s", channelId, message)
+	return nil
+}
