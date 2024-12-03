@@ -28,7 +28,7 @@ func NewApp(albionService services.AlbionService) *App {
 
 func (app *App) Run(ctx context.Context) error {
 	// Crear un ticker para ejecutar la verificación periódica
-	ticker := time.NewTicker(15 * time.Minute) // Ejecutar cada 5 minutos
+	ticker := time.NewTicker(15 * time.Minute) // Ejecutar cada 15 minutos
 	defer ticker.Stop()
 
 	log.Println("Aplicación iniciada, esperando eventos del ticker...")
@@ -98,7 +98,7 @@ func (app *App) fetchAndProcessKills(ctx context.Context) error {
 	// Manejar los resultados y errores
 	go func() {
 		for result := range results {
-			fmt.Println(result[0].Killer.Name)
+			fmt.Println(result)
 		}
 	}()
 
@@ -138,7 +138,7 @@ func (app *App) worker(
 				// Si la más reciente kill no es igual a la anterior, es nueva
 				// Convertir EventId a string para poder imprimirlo correctamente
 				eventId := strconv.Itoa(kills[0].EventId)
-				fmt.Printf("¡Nueva kill detectada para %s! EventId: %s\n", memberId, eventId)
+				fmt.Printf("¡Nueva kill detectada para %s EventId: %s\n", memberId, eventId)
 
 				// Actualizar la kill previa
 				app.previousKills[memberId] = kills[0]

@@ -1,4 +1,4 @@
-package interfaces
+package repositories
 
 import "albion-killbot/internal/entities"
 

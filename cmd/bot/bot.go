@@ -2,7 +2,6 @@ package main
 
 import (
 	"albion-killbot/internal/application"
-	"albion-killbot/internal/infrastructure/services"
 	"context"
 	"fmt"
 	"log"
@@ -23,13 +22,7 @@ func main() {
 		log.Fatal("El token del bot no está definido en el archivo .env")
 	}
 
-	fmt.Println("App running")
-
-	// Inicializar servicios
-	albionService := services.NewAlbionService()
-
-	// Crear el servicio de aplicación que orquesta los casos de uso
-	app := application.NewApp(*albionService)
+	fmt.Println("Bot running")
 
 	// Crear el bot
 	bot := application.NewBot(botToken)
@@ -41,9 +34,6 @@ func main() {
 	ctx := context.Background()
 
 	// Ejecutar la lógica de la aplicación
-	if err := app.Run(ctx); err != nil {
-		log.Fatalf("Error en la ejecución de la aplicación: %v", err)
-	}
 
 	// Ejecutar el bot, en caso de que la aplicación haya finalizado sin errores
 	if err := bot.Run(ctx); err != nil {
@@ -51,5 +41,5 @@ func main() {
 	}
 
 	// Si ambos procesos se ejecutan correctamente
-	fmt.Println("Aplicación ejecutada con éxito")
+	fmt.Println("Bot ejecutado con éxito")
 }
