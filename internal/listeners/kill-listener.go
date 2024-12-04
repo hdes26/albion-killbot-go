@@ -20,6 +20,7 @@ type KillListener struct {
 	SendKillEvent     usecases.SendKillEventUseCase
 	ChannelRepo       *dbrepositories.ChannelRepository
 	Botservice        *services.BotService
+	previousKills     map[string]map[int]bool // Mapa optimizado para almacenar kills previas por jugador
 }
 
 func NewKillListener(session *discordgo.Session, channelRepo *dbrepositories.ChannelRepository) *KillListener {
@@ -27,13 +28,8 @@ func NewKillListener(session *discordgo.Session, channelRepo *dbrepositories.Cha
 	// Inicializar los casos de uso
 	fetchPlayerKills := usecases.FetchPlayerKills{}
 	fetchGuildMembers := usecases.FetchGuildMembers{}
-	botservice := services.BotService{
-		Session: session,
-	}
-
-	sendKillEvent := usecases.SendKillEventUseCase{
-		BotService: &botservice,
-	}
+	botservice := services.BotService{Session: session}
+	sendKillEvent := usecases.SendKillEventUseCase{BotService: &botservice}
 
 	// Crear y devolver el KillListener
 	return &KillListener{
@@ -42,13 +38,15 @@ func NewKillListener(session *discordgo.Session, channelRepo *dbrepositories.Cha
 		SendKillEvent:     sendKillEvent,
 		ChannelRepo:       channelRepo,
 		Botservice:        &botservice,
+		previousKills:     make(map[string]map[int]bool),
 	}
 }
+
 func (l *KillListener) Start(ctx context.Context, channelRepo *dbrepositories.ChannelRepository) {
 
 	l.processKills(ctx)
 
-	ticker := time.NewTicker(15 * time.Minute)
+	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
 	log.Println("Listener started, waiting for events...")
@@ -106,7 +104,7 @@ func (l *KillListener) processKills(ctx context.Context) {
 			close(errors)
 		}()
 
-		l.handleResultsAndErrors(channel.ChannelID, results, errors)
+		l.handleResultsAndErrors(channel.ChannelID, results)
 	}
 	fmt.Print("Sending kills...")
 }
@@ -168,25 +166,48 @@ func (l *KillListener) worker(
 	}
 }
 
-func (l *KillListener) handleResultsAndErrors(channelId string, results <-chan []entities.PlayerKill, errors <-chan error) error {
-	for playersKills := range results {
-		for _, kill := range playersKills {
+func (l *KillListener) handleResultsAndErrors(channelId string, results <-chan []entities.PlayerKill) {
+	var wg sync.WaitGroup
 
-			err := l.SendKillEvent.Handle(channelId, kill)
+	// Goroutine para manejar resultados de kills
+	go func() {
+		for playersKills := range results {
+			for _, kill := range playersKills {
+				wg.Add(1)
 
-			if err != nil {
-				log.Printf("Error al enviar evento de kill: %v", err)
-				return err // Propagar el error a la capa superior
+				go func(kill entities.PlayerKill) {
+					defer wg.Done()
+
+					// Verificación de si es una nueva kill
+					if previousKills, exists := l.previousKills[kill.Killer.Id]; exists {
+						// Si ya existen kills previas, verificamos si el EventId ya está en el mapa
+						if _, isDuplicate := previousKills[kill.EventId]; isDuplicate {
+							return // Si es duplicada, la ignoramos
+						}
+					}
+
+					// Si la kill es nueva, procesamos y la agregamos
+					eventId := kill.EventId
+					fmt.Printf("¡Nueva kill detectada para %s! EventId: %d\n", kill.Killer.Id, eventId)
+
+					// Actualizamos el mapa con la nueva kill
+					if _, exists := l.previousKills[kill.Killer.Id]; !exists {
+						l.previousKills[kill.Killer.Id] = make(map[int]bool)
+					}
+					l.previousKills[kill.Killer.Id][eventId] = true
+
+					// Manejar el evento de kill
+					err := l.SendKillEvent.Handle(channelId, kill)
+					if err != nil {
+						log.Printf("Error al enviar evento de kill: %v", err)
+					}
+				}(kill)
 			}
 		}
-	}
+	}()
 
-	for err := range errors {
-		log.Printf("Error procesando kill: %v", err)
-		return err
-	}
+	wg.Wait()
 
-	return nil
 }
 
 // calculateWorkers determina la cantidad de workers según el tamaño de la cola de tareas

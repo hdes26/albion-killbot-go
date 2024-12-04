@@ -63,7 +63,25 @@ func (service *AlbionService) FetchPlayerKills(playerId string) ([]entities.Play
 		return nil, err
 	}
 
-	return kills, nil
+	oneHourAgo := time.Now().Add(-1 * time.Hour)
+
+	var recentKills []entities.PlayerKill
+
+	for _, kill := range kills {
+		// Convertir el TimeStamp de la kill a un objeto time.Time
+		killTime, err := time.Parse(time.RFC3339, kill.TimeStamp)
+		if err != nil {
+			return nil, err
+		}
+
+		// Verificar si la kill fue en la última hora
+		if killTime.After(oneHourAgo) {
+			recentKills = append(recentKills, kill)
+		}
+	}
+
+	return recentKills, nil
+
 }
 
 func (service *AlbionService) FetchGuildByName(guildName string) (entities.Guild, error) {
