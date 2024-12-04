@@ -10,7 +10,7 @@ import (
 type Channel struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty"`  // El ID de MongoDB para el guild.
 	ChannelID string             `bson:"channel_id"`     // ID del canal donde se configuró el guild.
-	Channel   string             `bson:"channel"`        // Nombre del canal donde se configuró el guild.
+	Channel   *string            `bson:"channel"`        // Nombre del canal donde se configuró el guild.
 	Guild     *Guild             `json:"Guild"`          // Equipamiento del jugador
 	Type      *string            `bson:"type,omitempty"` // Tipo del canal, como "killboard", "event", etc.
 	Active    *bool              `bson:"active"`         // Indica si el guild está activo.

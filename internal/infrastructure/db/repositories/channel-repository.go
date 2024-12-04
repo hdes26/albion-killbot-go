@@ -23,6 +23,36 @@ func NewChannelRepository(db *mongo.Collection) *ChannelRepository {
 }
 
 // FindByChannelID busca un canal por su ID de canal.
+func (cr *ChannelRepository) FindChannels() ([]*entities.Channel, error) {
+	var channels []*entities.Channel
+
+	// Realizamos la búsqueda en la colección, obteniendo el cursor
+	cursor, err := cr.DB.Find(nil, bson.M{}) // Aquí obtienes el cursor
+	if err != nil {
+		// Si ocurre un error al buscar los canales
+		return nil, fmt.Errorf("error al buscar canales: %w", err)
+	}
+	defer cursor.Close(nil) // Asegúrate de cerrar el cursor al final
+
+	// Iteramos sobre el cursor para llenar el slice de canales
+	for cursor.Next(nil) {
+		var channel entities.Channel
+		if err := cursor.Decode(&channel); err != nil {
+			return nil, fmt.Errorf("error al decodificar canal: %w", err)
+		}
+		// Agregamos el canal decodificado al slice
+		channels = append(channels, &channel)
+	}
+
+	// Verificamos si ocurrió un error durante la iteración
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("error al iterar sobre los canales: %w", err)
+	}
+
+	return channels, nil
+}
+
+// FindByChannelID busca un canal por su ID de canal.
 func (cr *ChannelRepository) FindByChannelID(channelID string) (*entities.Channel, error) {
 	var channel entities.Channel
 	err := cr.DB.FindOne(nil, bson.M{"channel_id": channelID}).Decode(&channel)

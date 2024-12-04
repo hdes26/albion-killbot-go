@@ -9,6 +9,6 @@ type FetchGuildMembers struct {
 	AlbionService *services.AlbionService
 }
 
-func (uc *FetchGuildMembers) Handle() ([]entities.GuildMember, error) {
-	return uc.AlbionService.FetchGuildMembers()
+func (uc *FetchGuildMembers) Handle(guildId string) ([]entities.GuildMember, error) {
+	return uc.AlbionService.FetchGuildMembers(guildId)
 }

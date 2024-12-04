@@ -31,104 +31,164 @@ func (ml *MessageListener) HandleMessage(s *discordgo.Session, i *discordgo.Inte
 		return
 	}
 
-	// Determinar qué comando fue ejecutado
 	switch i.ApplicationCommandData().Name {
 	case "killboard":
-		exampleEmbed := &discordgo.MessageEmbed{
-			Color:       0x0099FF,
-			Title:       "Killboard",
-			Description: "successfully registered on the channel 💥killboard. Now you need to configure which channels you want to receive notifications on. Use the /killboard set command on the desired channel to receive notifications..",
-			Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg"},
-			Timestamp:   time.Now().Format(time.RFC3339),
-			Footer: &discordgo.MessageEmbedFooter{
-				Text:    "Enjoy!",
-				IconURL: "https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg",
-			},
-		}
+		handleKillboardCommand(s, i, ml)
+	case "set":
+		handleSetCommand(s, i, ml)
+	default:
+		respondWithMessage(s, i, "Comando no reconocido.")
+	}
+}
 
-		// Responder con el embed generado
-		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{exampleEmbed},
-			},
-		})
+func handleKillboardCommand(s *discordgo.Session, i *discordgo.InteractionCreate, ml *MessageListener) {
+	embed := createEmbed(
+		"Killboard",
+		"successfully registered on the channel 💥killboard. Configure which channels to receive notifications using the `/killboard set` command.",
+		"https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg",
+	)
 
-		if err != nil {
-			// Manejar error en la respuesta
-			println("Error enviando la respuesta:", err.Error())
-		}
+	respondWithEmbed(s, i, embed)
 
-		//TODO:
-		channelFound, err := ml.ChannelRepo.FindByChannelID(i.ChannelID) // capturamos ambos valores: canal y error
-		if err != nil {
-			log.Printf("Error buscando canal por ID: %v", err)
-			return
-		}
+	channelID := i.ChannelID
 
-		if channelFound == nil {
-			log.Println("Canal no encontrado")
-			return
-		}
+	guildName := i.ApplicationCommandData().Options[0].StringValue()
 
-		guildName := i.ApplicationCommandData().Options[0].StringValue()
+	// Buscar si el canal ya existe en la base de datos
+	exist, err := ml.ChannelRepo.FindByChannelID(channelID)
+	if err != nil {
+		log.Printf("Error buscando canal por ID: %v", err)
+		return
+	}
+
+	if exist == nil {
 		guild, err := ml.AlbionService.FetchGuildByName(guildName)
-
 		if err != nil {
-			// Maneja el error de no encontrar el guild
-			fmt.Println("Guild no encontrado:", guildName)
+			log.Printf("Guild no encontrado: %v", err)
 			return
 		}
 
-		// Usar guild directamente, sin desreferenciar
-		channel := &entities.Channel{
-			ChannelID: i.ChannelID,
-			Channel:   guild.Name,
+		newChannel := &entities.Channel{
+			ChannelID: channelID,
 			Type:      nil,
-			Active:    nil,
+			Guild:     &guild,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-			Guild:     &guild, // Aquí pasas directamente el valor de guild, sin usar *
+			Active:    boolPtr(false),
 		}
 
-		_, err = ml.ChannelRepo.Save(channel)
-		if err != nil {
-			// Maneja el error al guardar el canal
-			fmt.Println("Error al guardar el canal:", err)
+		if _, err := ml.ChannelRepo.Save(newChannel); err != nil {
+			log.Printf("Error al guardar el canal: %v", err)
 		}
-
-	case "set":
-		// Crear el embed con la respuesta
-		exampleEmbed := &discordgo.MessageEmbed{
-			Color:       0x0099FF,
-			Title:       "Killboard",
-			Description: fmt.Sprintf("The channel: %s has been configured to receive Kill notifications. If you haven't already, use the '/killboard guild' command to register your guild.", i.ChannelID),
-			Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg"},
-			Timestamp:   time.Now().Format(time.RFC3339),
-			Footer: &discordgo.MessageEmbedFooter{
-				Text:    "Enjoy!",
-				IconURL: "https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg",
-			},
-		}
-
-		// Responder con el embed generado
-		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{exampleEmbed},
-			},
-		})
-
-		if err != nil {
-			// Manejar error en la respuesta
-			println("Error enviando la respuesta:", err.Error())
-		}
-	default:
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Comando no reconocido.",
-			},
-		})
+		return
 	}
+	if exist.Guild != nil {
+		return
+	}
+
+	guild, err := ml.AlbionService.FetchGuildByName(guildName)
+	if err != nil {
+		log.Printf("Error al buscar el guild: %v", err)
+		return
+	}
+	exist.Guild = &guild
+	exist.Active = boolPtr(true)
+
+	exist.UpdatedAt = time.Now()
+	if _, err := ml.ChannelRepo.Update(exist); err != nil {
+		log.Printf("Error al actualizar el canal: %v", err)
+	}
+}
+
+func handleSetCommand(s *discordgo.Session, i *discordgo.InteractionCreate, ml *MessageListener) {
+	embed := createEmbed(
+		"Killboard",
+		fmt.Sprintf("The channel: %s has been configured to receive Kill notifications. Use `/killboard guild` to register your guild.", i.ChannelID),
+		"https://i.ibb.co/6wSQ18j/logo-albion-bot.jpg",
+	)
+
+	respondWithEmbed(s, i, embed)
+
+	channelID := i.ChannelID
+	channel, err := s.State.Channel(channelID)
+	channelType := i.ApplicationCommandData().Options[0].StringValue()
+
+	// Buscar si el canal ya existe en la base de datos
+	exist, err := ml.ChannelRepo.FindByChannelID(channelID)
+	if err != nil {
+		log.Printf("Error buscando canal por ID: %v", err)
+		return
+	}
+
+	if exist == nil {
+		newChannel := &entities.Channel{
+			ChannelID: channelID,
+			Channel:   &channel.Name,
+			Type:      &channelType,
+			Guild:     nil,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Active:    boolPtr(false),
+		}
+
+		if _, err := ml.ChannelRepo.Save(newChannel); err != nil {
+			log.Printf("Error al guardar el canal: %v", err)
+		}
+		return
+	}
+
+	if exist.Type != nil {
+		return
+	}
+
+	exist.Type = &channelType
+	exist.Channel = &channel.Name
+	exist.Active = boolPtr(true)
+
+	exist.UpdatedAt = time.Now()
+	if _, err := ml.ChannelRepo.Update(exist); err != nil {
+		log.Printf("Error al actualizar el canal: %v", err)
+	}
+}
+
+func createEmbed(title, description, thumbnail string) *discordgo.MessageEmbed {
+	return &discordgo.MessageEmbed{
+		Color:       0x0099FF,
+		Title:       title,
+		Description: description,
+		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: thumbnail},
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Footer: &discordgo.MessageEmbedFooter{
+			Text:    "Enjoy!",
+			IconURL: thumbnail,
+		},
+	}
+}
+
+func respondWithEmbed(s *discordgo.Session, i *discordgo.InteractionCreate, embed *discordgo.MessageEmbed) {
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	})
+	if err != nil {
+		log.Printf("Error enviando respuesta: %v", err)
+	}
+}
+
+func respondWithMessage(s *discordgo.Session, i *discordgo.InteractionCreate, content string) {
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: content,
+		},
+	})
+	if err != nil {
+		log.Printf("Error enviando respuesta: %v", err)
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

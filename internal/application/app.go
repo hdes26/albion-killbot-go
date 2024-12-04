@@ -2,41 +2,34 @@ package application
 
 import (
 	"albion-killbot/internal/infrastructure/db"
-	"albion-killbot/internal/infrastructure/services"
+	dbrepositories "albion-killbot/internal/infrastructure/db/repositories"
 	"albion-killbot/internal/listeners"
-	"albion-killbot/internal/usecases"
 	"context"
 	"fmt"
 	"log"
 )
 
 type App struct {
-	KillListener *listeners.KillListener
 	bot          *Bot
 	dbClient     *db.MongoDBClient
+	ChannelRepo  *dbrepositories.ChannelRepository
+	KillListener *listeners.KillListener
 }
 
 func NewApp(botToken string, dbClient *db.MongoDBClient) *App {
-	// Inicializamos los servicios y repositorios
-	albionService := &services.AlbionService{}
 
-	// Inicializamos los casos de uso
-	fetchPlayerKills := usecases.FetchPlayerKills{AlbionService: albionService}
-	fetchGuildMembers := usecases.FetchGuildMembers{AlbionService: albionService}
+	channelCollection := dbClient.GetDatabase("albion").Collection("channels")
+	channelRepo := &dbrepositories.ChannelRepository{DB: channelCollection}
 
-	// Inicializamos el bot con el token
-	bot := NewBot(botToken, dbClient) // Aquí se pasa el token
+	bot := NewBot(botToken, channelRepo)
 
-	// Inicializamos el listener
-	killListener := &listeners.KillListener{
-		FetchPlayerKills:  fetchPlayerKills,
-		FetchGuildMembers: fetchGuildMembers,
-	}
+	killListener := listeners.NewKillListener(bot.Session, channelRepo)
 
 	return &App{
-		KillListener: killListener,
 		bot:          bot,
 		dbClient:     dbClient,
+		ChannelRepo:  channelRepo,
+		KillListener: killListener,
 	}
 }
 
@@ -44,7 +37,7 @@ func (a *App) Run(ctx context.Context) error {
 	log.Println("App started")
 
 	// Iniciar el listener que maneja los eventos
-	go a.KillListener.Start(ctx)
+	go a.KillListener.Start(ctx, a.ChannelRepo)
 
 	// Iniciar el bot en un goroutine para que se ejecute de manera concurrente
 	errCh := make(chan error)

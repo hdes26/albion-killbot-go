@@ -81,12 +81,19 @@ func convertOptions(options []entities.CommandOption) []*discordgo.ApplicationCo
 	return botOptions
 }
 
-func (b *BotService) SendInteractionToServer(channelId string, message string) error {
-	_, err := b.Session.ChannelMessageSend(channelId, message)
+func (b *BotService) SendInteractionToServer(channelId string, embeds []*discordgo.MessageEmbed) error {
+	if b.Session == nil {
+		return fmt.Errorf("discord session is nil")
+	}
+	message := &discordgo.MessageSend{
+		Embeds: embeds,
+	}
+
+	_, err := b.Session.ChannelMessageSendComplex(channelId, message)
 	if err != nil {
 		log.Printf("Error al enviar interacción al servidor: %v", err)
 		return err
 	}
-	log.Printf("Interacción enviada al servidor: %s, mensaje: %s", channelId, message)
+
 	return nil
 }

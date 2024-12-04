@@ -23,8 +23,8 @@ func NewAlbionService() *AlbionService {
 	return &AlbionService{}
 }
 
-func (service *AlbionService) FetchGuildMembers() ([]entities.GuildMember, error) {
-	const guildEndpoint = "https://gameinfo.albiononline.com/api/gameinfo/guilds/Amt2FdNMRTWRYmhaYnibvQ/members"
+func (service *AlbionService) FetchGuildMembers(guildId string) ([]entities.GuildMember, error) {
+	guildEndpoint := fmt.Sprintf("https://gameinfo.albiononline.com/api/gameinfo/guilds/%s/members", guildId)
 	resp, err := http.Get(guildEndpoint)
 	if err != nil {
 		return nil, err
