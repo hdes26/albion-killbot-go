@@ -1,6 +1,7 @@
 package application
 
 import (
+	"albion-killbot/internal/infrastructure/db"
 	"albion-killbot/internal/infrastructure/services"
 	"albion-killbot/internal/listeners"
 	"albion-killbot/internal/usecases"
@@ -12,9 +13,10 @@ import (
 type App struct {
 	KillListener *listeners.KillListener
 	bot          *Bot
+	dbClient     *db.MongoDBClient
 }
 
-func NewApp(botToken string) *App {
+func NewApp(botToken string, dbClient *db.MongoDBClient) *App {
 	// Inicializamos los servicios y repositorios
 	albionService := &services.AlbionService{}
 
@@ -23,7 +25,7 @@ func NewApp(botToken string) *App {
 	fetchGuildMembers := usecases.FetchGuildMembers{AlbionService: albionService}
 
 	// Inicializamos el bot con el token
-	bot := NewBot(botToken) // Aquí se pasa el token
+	bot := NewBot(botToken, dbClient) // Aquí se pasa el token
 
 	// Inicializamos el listener
 	killListener := &listeners.KillListener{
@@ -34,6 +36,7 @@ func NewApp(botToken string) *App {
 	return &App{
 		KillListener: killListener,
 		bot:          bot,
+		dbClient:     dbClient,
 	}
 }
 

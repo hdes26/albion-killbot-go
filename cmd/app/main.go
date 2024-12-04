@@ -24,16 +24,16 @@ func main() {
 
 	// Conectar a MongoDB
 	mongoUri := os.Getenv("MG_URI")
-	err = database.Connect(mongoUri)
+	dbClient, err := database.Connect(mongoUri)
 	if err != nil {
 		log.Fatalf("Error al conectar a MongoDB: %v", err)
 	}
-	defer database.Disconnect()
+	defer dbClient.Disconnect()
 
 	fmt.Println("App running")
 
-	// Crear la aplicación
-	app := application.NewApp(botToken) // Pasamos el token al crear la app
+	// Crear la aplicación y pasar la conexión de la base de datos
+	app := application.NewApp(botToken, dbClient) // Pasa la conexión de DB
 
 	// Crear un contexto sin timeout
 	ctx := context.Background()

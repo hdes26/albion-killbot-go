@@ -1,46 +1,60 @@
-// infrastructure/database/database.go
-
-package database
+package db
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// DBClient es una variable global que mantendrá la conexión a MongoDB
-var DBClient *mongo.Client
+// MongoDBClient mantiene la conexión a la base de datos
+type MongoDBClient struct {
+	Client *mongo.Client
+}
 
-// Connect se encarga de establecer la conexión con MongoDB
-func Connect(mongoURI string) error {
+// Connect se encarga de establecer la conexión con MongoDB y devolver el cliente
+func Connect(mongoURI string) (*MongoDBClient, error) {
 	// Configurar el cliente de MongoDB
 	clientOptions := options.Client().ApplyURI(mongoURI)
 
+	// Crear un contexto con timeout para evitar bloqueos largos
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// Intentar conectar con la base de datos
-	client, err := mongo.Connect(context.Background(), clientOptions)
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("error al conectar a MongoDB: %w", err)
 	}
 
 	// Comprobar la conexión
-	err = client.Ping(context.Background(), nil)
+	err = client.Ping(ctx, nil)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("no se pudo hacer ping a la base de datos: %w", err)
 	}
 
-	// Asignar el cliente a la variable global DBClient
-	DBClient = client
 	log.Println("Conectado a MongoDB")
 
-	return nil
+	// Retornar el cliente envuelto en MongoDBClient
+	return &MongoDBClient{Client: client}, nil
 }
 
 // Disconnect cierra la conexión con MongoDB
-func Disconnect() error {
-	if DBClient != nil {
-		return DBClient.Disconnect(context.Background())
+func (db *MongoDBClient) Disconnect() error {
+	if db.Client != nil {
+		return db.Client.Disconnect(context.Background())
 	}
 	return nil
+}
+
+// Obtener una referencia a una base de datos específica
+func (db *MongoDBClient) GetDatabase(dbName string) *mongo.Database {
+	return db.Client.Database(dbName)
+}
+
+func (client *MongoDBClient) GetCollection(collectionName string) *mongo.Collection {
+	return client.Client.Database("yourDatabaseName").Collection(collectionName)
 }

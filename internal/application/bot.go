@@ -1,6 +1,8 @@
 package application
 
 import (
+	"albion-killbot/internal/infrastructure/db"
+	dbrepositories "albion-killbot/internal/infrastructure/db/repositories"
 	"albion-killbot/internal/infrastructure/services"
 	"albion-killbot/internal/listeners"
 	"albion-killbot/internal/usecases"
@@ -15,9 +17,10 @@ type Bot struct {
 	Session                    *discordgo.Session
 	BotRegisterCommandsUseCase *usecases.BotRegisterCommandsUseCase // Referencia al caso de uso
 	SendKillEventUseCase       *usecases.SendKillEventUseCase
+	ChannelRepo                *dbrepositories.ChannelRepository
 }
 
-func NewBot(botToken string) *Bot {
+func NewBot(botToken string, dbClient *db.MongoDBClient) *Bot {
 	// Crear la sesión de Discord
 	sess, err := discordgo.New("Bot " + botToken)
 	if err != nil {
@@ -32,6 +35,12 @@ func NewBot(botToken string) *Bot {
 		return nil
 	}
 
+	// Obtener la colección de canales de la base de datos
+	channelCollection := dbClient.GetDatabase("albion").Collection("channels")
+
+	// Crear el ChannelRepository
+	channelRepo := dbrepositories.NewChannelRepository(channelCollection)
+
 	// Crear el caso de uso para registrar comandos
 	botRegisterCommandsUseCase := &usecases.BotRegisterCommandsUseCase{
 		BotService: botService, // Aquí pasas botService directamente, no hace falta hacer &botService
@@ -41,6 +50,7 @@ func NewBot(botToken string) *Bot {
 	return &Bot{
 		Session:                    sess,
 		BotRegisterCommandsUseCase: botRegisterCommandsUseCase,
+		ChannelRepo:                channelRepo, // Pasamos ChannelRepo al bot
 	}
 }
 
@@ -56,7 +66,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	log.Println("Bot is online")
 
 	/* Bot listeners */
-	messageListener := listeners.NewMessageListener()
+	messageListener := listeners.NewMessageListener(b.ChannelRepo) // Le pasamos ChannelRepo
 
 	// Registrar el listener en la sesión
 	b.Session.AddHandler(messageListener.HandleMessage)
